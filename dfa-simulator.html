@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DFA Language Recognition Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js" type="application/javascript"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(to bottom, #e0e7ff, #f3f4f6);
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        
+        .container:hover {
+            transform: translateY(-2px);
+        }
+        
+        h2 {
+            color: #1e40af;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-align: center;
+        }
+        
+        input,
+        textarea,
+        button {
+            padding: 12px;
+            margin: 8px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #1e40af;
+            box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        button {
+            background: #1e40af;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #1e3a8a;
+        }
+        
+        #controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #controls button {
+            width: 50%;
+        }
+        
+        #result {
+            margin-top: 15px;
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        #result.error {
+            color: #dc2626;
+        }
+        
+        #result.success {
+            color: #16a34a;
+        }
+        
+        #visual {
+            font-family: 'Consolas', monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+        }
+        
+        #highlightedText .current {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .accepted {
+            background: #bbf7d0;
+        }
+        
+        .current {
+            background: #fef08a;
+        }
+        
+        #graph {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        label {
+            display: block;
+            text-align: left;
+            margin: 8px 0 4px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            h2 {
+                font-size: 20px;
+            }
+            input,
+            textarea,
+            button {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>DFA Language Recognition Simulator</h2>
+        <label for="statesInput">States (e.g., 0,1,2):</label>
+        <input id="statesInput" placeholder="Enter states (e.g., 0,1,2)" />
+        <label for="alphabetInput">Alphabet (e.g., a,b):</label>
+        <input id="alphabetInput" placeholder="Enter alphabet (e.g., a,b)" />
+        <label for="transitionsInput">Transitions (one per line, e.g., 0,a,0):</label>
+        <textarea id="transitionsInput" placeholder="Enter transitions, one per line"></textarea>
+        <label for="textInput">Input String (e.g., aabb):</label>
+        <input id="textInput" placeholder="Enter input string (e.g., aabb)" />
+        <button onclick="simulateDFA()">Simulate DFA</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next</button>
+            <button onclick="resetTraversal()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="highlightedText"></div>
+        <div id="visual"></div>
+        <div id="graph"></div>
+    </div>
+
+    <script>
+        let traversal = {
+            index: 0,
+            state: 0,
+            text: "",
+            dfa: {},
+            states: [],
+            alphabet: [],
+            startState: 0,
+            acceptStates: [],
+            steps: [],
+        };
+
+        function parseDFAInput() {
+            let statesInput = document.getElementById("statesInput").value.trim();
+            let alphabetInput = document.getElementById("alphabetInput").value.trim();
+            let transitionsInput = document.getElementById("transitionsInput").value.trim();
+
+            if (!statesInput || !alphabetInput || !transitionsInput) {
+                throw new Error("All DFA fields are required.");
+            }
+
+            let states = statesInput.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+            let alphabet = alphabetInput.split(',').map(s => s.trim()).filter(Boolean);
+            let transitions = transitionsInput.split('\n').map(t => t.trim()).filter(Boolean);
+
+            let dfa = {};
+            states.forEach(s => dfa[s] = {});
+            let maxState = Math.max(...states);
+            let startState = 0;
+            let acceptStates = [maxState];
+
+            transitions.forEach(t => {
+                let [from, char, to] = t.split(',').map(s => s.trim());
+                from = parseInt(from);
+                to = parseInt(to);
+                if (isNaN(from) || isNaN(to) || !char || !states.includes(from) || !states.includes(to) || !alphabet.includes(char)) {
+                    throw new Error(`Invalid transition: ${t}`);
+                }
+                dfa[from][char] = to;
+            });
+
+            for (let state of states) {
+                for (let char of alphabet) {
+                    if (dfa[state][char] === undefined) {
+                        throw new Error(`Missing transition for state ${state} and input ${char}`);
+                    }
+                }
+            }
+
+            return {
+                dfa,
+                states,
+                alphabet,
+                startState,
+                acceptStates
+            };
+        }
+
+        function simulateDFA() {
+            const text = document.getElementById("textInput").value.trim();
+            const resultDiv = document.getElementById("result");
+
+            try {
+                const {
+                    dfa,
+                    states,
+                    alphabet,
+                    startState,
+                    acceptStates
+                } = parseDFAInput();
+
+                traversal = {
+                    index: 0,
+                    state: startState,
+                    text,
+                    dfa,
+                    states,
+                    alphabet,
+                    startState,
+                    acceptStates,
+                    steps: []
+                };
+
+                if (text) {
+                    for (let char of text) {
+                        if (!alphabet.includes(char)) {
+                            throw new Error(`Invalid character in input: ${char}`);
+                        }
+                    }
+                }
+
+                let state = startState;
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    const prevState = state;
+                    state = dfa[state][char];
+                    traversal.steps.push({
+                        index: i,
+                        char,
+                        from: prevState,
+                        to: state
+                    });
+                }
+
+                const isAccepted = acceptStates.includes(state);
+                resultDiv.innerHTML = text ?
+                    (isAccepted ? "String ACCEPTED by the DFA." : "String REJECTED by the DFA.") :
+                    "No input string provided.";
+                resultDiv.className = text ?
+                    (isAccepted ? "success" : "error") :
+                    "";
+
+                updateVisual();
+                renderDiagram();
+                renderHighlightedText();
+            } catch (e) {
+                resultDiv.innerHTML = `Error: ${e.message}`;
+                resultDiv.className = "error";
+            }
+        }
+
+        function updateVisual() {
+            const step = traversal.steps[traversal.index];
+            const visual = document.getElementById("visual");
+
+            if (!step) {
+                visual.innerHTML = traversal.text ?
+                    "<strong>DFA Step:</strong><br>Simulation complete." :
+                    "<strong>DFA Step:</strong><br>No input string to process.";
+                return;
+            }
+
+            visual.innerHTML = `<strong>DFA Step:</strong><br>Reading '${step.char}' at index ${step.index}: State ${step.from} → ${step.to}`;
+            renderHighlightedText();
+        }
+
+        function renderHighlightedText() {
+            const text = traversal.text;
+            const output = [];
+
+            for (let i = 0; i < text.length; i++) {
+                const cls = i === traversal.index ? 'current' : '';
+                output.push(`<span class="${cls}">${text[i]}</span>`);
+            }
+
+            document.getElementById("highlightedText").innerHTML = output.join('');
+        }
+
+        function nextStep() {
+            if (traversal.index < traversal.text.length) {
+                traversal.index++;
+                updateVisual();
+            }
+        }
+
+        function resetTraversal() {
+            traversal.index = 0;
+            updateVisual();
+        }
+
+        function renderDiagram() {
+            const {
+                dfa,
+                states,
+                alphabet,
+                startState,
+                acceptStates
+            } = traversal;
+
+            if (typeof Viz === 'undefined') {
+                console.error("Viz.js is not available.");
+                document.getElementById("graph").innerHTML = "Error: Viz.js not loaded.";
+                return;
+            }
+
+            let dot = `digraph DFA {\n`;
+            dot += `  rankdir=LR;\n`;
+            dot += `  node [shape = doublecircle]; ${acceptStates.join(' ')};\n`;
+            dot += `  node [shape = circle];\n`;
+            dot += `  fake [style=invis];\n`;
+            dot += `  fake -> ${startState};\n`;
+
+            for (let from of states) {
+                for (let symbol of alphabet) {
+                    let to = dfa[from][symbol];
+                    if (to !== undefined) {
+                        dot += `  ${from} -> ${to} [label="${symbol}"];\n`;
+                    }
+                }
+            }
+
+            dot += `}`;
+
+            const viz = new Viz();
+            viz.renderSVGElement(dot)
+                .then(element => {
+                    const graphDiv = document.getElementById("graph");
+                    graphDiv.innerHTML = "";
+                    graphDiv.appendChild(element);
+                })
+                .catch(err => {
+                    console.error("Error rendering DFA diagram:", err);
+                    document.getElementById("graph").innerHTML = "Error rendering graph.";
+                });
+        }
+    </script>
+</body>
+
+</html>

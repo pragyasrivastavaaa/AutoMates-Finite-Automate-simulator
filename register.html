@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign Up - AutoMates</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCNgnQbHGYXh_fXEfVB3e1_dP_fxk3SfAE",
+      authDomain: "automates-84316.firebaseapp.com",
+      projectId: "automates-84316",
+      storageBucket: "automates-84316.appspot.com",
+      messagingSenderId: "541272116022",
+      appId: "1:541272116022:web:986ccacd1203591053c197",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("signup-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+
+        try {
+          await createUserWithEmailAndPassword(auth, email, password);
+          alert("Registration successful!");
+          window.location.href = "login.html";
+        } catch (error) {
+          alert("Signup failed: " + error.message);
+        }
+      });
+
+      document.getElementById("google-btn").addEventListener("click", async () => {
+        try {
+          await signInWithPopup(auth, provider);
+          alert("Google login successful!");
+          window.location.href = "home.html";
+        } catch (error) {
+          alert("Google login failed: " + error.message);
+        }
+      });
+    });
+  </script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+    }
+    .card {
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+      background: white;
+      color: #333;
+      width: 100%;
+      max-width: 400px;
+    }
+    .btn-google {
+      background-color: #db4437;
+      color: white;
+    }
+    .btn-google:hover {
+      background-color: #c23321;
+    }
+  </style>
+</head>
+<body>
+  <div class="card text-center">
+    <h2 class="mb-4">Register with AutoMates</h2>
+    <form id="signup-form">
+      <input type="email" class="form-control mb-3" id="email" placeholder="Email" required />
+      <input type="password" class="form-control mb-3" id="password" placeholder="Password" required />
+      <button class="btn btn-success w-100">Sign Up</button>
+    </form>
+    <button class="btn btn-google w-100 mb-3" id="google-btn">Sign up with Gmail</button>
+    <p class="mt-3">Already have an account? <a href="login.html">Login</a></p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multi-State DFA Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 650px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        input,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: blue;
+            box-shadow: 0 0 0 3px rgba(0, 0, 255, 0.1);
+        }
+        
+        button {
+            background: blue;
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: darkblue;
+        }
+        
+        #controls button {
+            width: 48%;
+            display: inline-block;
+        }
+        
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        #result.success {
+            color: #16a34a;
+        }
+        
+        #result.error {
+            color: #dc2626;
+        }
+        
+        #visual {
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        #highlightedText span {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .current {
+            background: yellow;
+        }
+        
+        #graph {
+            margin-top: 20px;
+        }
+        
+        label {
+            display: block;
+            text-align: left;
+            margin: 8px 0 4px;
+            font-weight: 600;
+            color: #374151;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Multi-State DFA Simulator</h2>
+        <label for="statesInput">States (e.g., q0,q1,q2):</label>
+        <input id="statesInput" placeholder="Enter states (comma-separated)" />
+        <label for="alphabetInput">Alphabet (e.g., 0,1):</label>
+        <input id="alphabetInput" placeholder="Enter alphabet (comma-separated)" />
+        <label for="transitionsInput">Transitions (e.g., q0,0,q1; q0,1,q0):</label>
+        <input id="transitionsInput" placeholder="Enter transitions (semicolon-separated)" />
+        <label for="startStateInput">Start State (e.g., q0):</label>
+        <input id="startStateInput" placeholder="Enter start state" />
+        <label for="acceptStatesInput">Accept States (e.g., q2):</label>
+        <input id="acceptStatesInput" placeholder="Enter accept states (comma-separated)" />
+        <label for="textInput">Input String (e.g., 1001):</label>
+        <input id="textInput" placeholder="Enter input string" />
+        <button onclick="recognizeString()">Recognize String</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next</button>
+            <button onclick="resetTraversal()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="highlightedText"></div>
+        <div id="visual"></div>
+        <div id="graph"></div>
+        <button onclick="exportDiagram('svg')">Export DFA as SVG</button>
+        <button onclick="exportDiagram('png')">Export DFA as PNG</button>
+    </div>
+
+    <script>
+        let traversal = {
+            index: 0,
+            state: '',
+            text: '',
+            steps: [],
+            dfa: {
+                states: [],
+                alphabet: [],
+                transitions: {},
+                startState: '',
+                acceptStates: []
+            }
+        };
+
+        function recognizeString() {
+            const resultDiv = document.getElementById("result");
+            try {
+                const states = document.getElementById("statesInput").value.trim().split(',').map(s => s.trim());
+                const alphabet = document.getElementById("alphabetInput").value.trim().split(',').map(a => a.trim());
+                const transitionsRaw = document.getElementById("transitionsInput").value.trim().split(';').map(t => t.trim());
+                const startState = document.getElementById("startStateInput").value.trim();
+                const acceptStates = document.getElementById("acceptStatesInput").value.trim().split(',').map(s => s.trim());
+                const text = document.getElementById("textInput").value.trim();
+
+                if (!states.length) throw new Error("States cannot be empty.");
+                if (!alphabet.length) throw new Error("Alphabet cannot be empty.");
+                if (!transitionsRaw.length) throw new Error("Transitions cannot be empty.");
+                if (!startState) throw new Error("Start state cannot be empty.");
+                if (!states.includes(startState)) throw new Error(`Start state '${startState}' not in states.`);
+                for (const s of acceptStates) {
+                    if (!states.includes(s)) throw new Error(`Accept state '${s}' not in states.`);
+                }
+                if ([...text].some(c => !alphabet.includes(c))) {
+                    throw new Error("Input string contains symbols not in alphabet.");
+                }
+
+                const transitions = {};
+                for (const t of transitionsRaw) {
+                    const [from, symbol, to] = t.split(',').map(x => x.trim());
+                    if (!from || !symbol || !to) throw new Error(`Invalid transition format: '${t}'. Use 'fromState,symbol,toState'.`);
+                    if (!states.includes(from)) throw new Error(`Transition from unknown state: '${from}' in '${t}'.`);
+                    if (!states.includes(to)) throw new Error(`Transition to unknown state: '${to}' in '${t}'.`);
+                    if (!alphabet.includes(symbol)) throw new Error(`Transition with unknown symbol: '${symbol}' in '${t}'.`);
+                    transitions[from] = transitions[from] || {};
+                    transitions[from][symbol] = to;
+                }
+
+                for (const state of states) {
+                    for (const symbol of alphabet) {
+                        if (!transitions[state] || !transitions[state][symbol]) {
+                            throw new Error(`Missing transition for state '${state}' on symbol '${symbol}'.`);
+                        }
+                    }
+                }
+
+                traversal.dfa = {
+                    states,
+                    alphabet,
+                    transitions,
+                    startState,
+                    acceptStates
+                };
+                traversal.text = text;
+                traversal.index = 0;
+                traversal.steps = [];
+
+                let currentState = startState;
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    const nextState = transitions[currentState][char];
+                    traversal.steps.push({
+                        index: i,
+                        char,
+                        from: currentState,
+                        to: nextState
+                    });
+                    currentState = nextState;
+                }
+
+                const isAccepted = acceptStates.includes(currentState);
+                resultDiv.textContent = isAccepted ? "String ACCEPTED" : "String REJECTED";
+                resultDiv.className = isAccepted ? "success" : "error";
+
+                updateVisual();
+                renderDiagram();
+                renderHighlightedText();
+            } catch (e) {
+                console.error("Recognition error:", e.message);
+                resultDiv.textContent = `Error: ${e.message}`;
+                resultDiv.className = "error";
+            }
+        }
+
+        function updateVisual() {
+            const step = traversal.steps[traversal.index];
+            document.getElementById("visual").innerHTML = step ?
+                `<strong>DFA Step:</strong><br>Reading '${step.char}' at index ${step.index}:<br>State ${step.from} → ${step.to}` :
+                `<strong>DFA Step:</strong><br>No input string to process.`;
+        }
+
+        function renderHighlightedText() {
+            const text = traversal.text;
+            const output = text.split('').map((ch, i) => `<span class="${i === traversal.index ? 'current' : ''}">${ch}</span>`);
+            document.getElementById("highlightedText").innerHTML = output.join('');
+        }
+
+        function nextStep() {
+            if (traversal.index < traversal.steps.length) {
+                traversal.index++;
+                updateVisual();
+                renderHighlightedText();
+            }
+        }
+
+        function resetTraversal() {
+            traversal.index = 0;
+            updateVisual();
+            renderHighlightedText();
+        }
+
+        function generateDOT() {
+            const {
+                states,
+                transitions,
+                acceptStates,
+                startState
+            } = traversal.dfa;
+            let dot = 'digraph DFA {\nrankdir=LR;\nnode [shape=circle fontname="Arial"];\n';
+            dot += `node [shape=doublecircle]; ${acceptStates.join(" ")};\n`;
+            dot += 'node [shape=circle];\nstart [shape=point];\n';
+            dot += `start -> ${startState};\n`;
+            for (const state of states) {
+                for (const symbol in transitions[state]) {
+                    const target = transitions[state][symbol];
+                    dot += `${state} -> ${target} [label="${symbol}"];\n`;
+                }
+            }
+            dot += '}';
+            return dot;
+        }
+
+        function renderDiagram() {
+            const dot = generateDOT();
+            new Viz().renderSVGElement(dot).then(svg => {
+                document.getElementById("graph").innerHTML = '';
+                document.getElementById("graph").appendChild(svg);
+            }).catch(err => {
+                document.getElementById("graph").innerHTML = "Error rendering diagram.";
+                console.error("Diagram rendering error:", err);
+            });
+        }
+
+        function exportDiagram(format) {
+            const dot = generateDOT();
+            const viz = new Viz();
+            if (format === 'svg') {
+                viz.renderSVGElement(dot).then(svg => {
+                    const serializer = new XMLSerializer();
+                    const source = serializer.serializeToString(svg);
+                    const blob = new Blob([source], {
+                        type: 'image/svg+xml;charset=utf-8'
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "dfa.svg";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            } else if (format === 'png') {
+                viz.renderImageElement(dot).then(img => {
+                    const link = document.createElement("a");
+                    link.href = img.src;
+                    link.download = "dfa.png";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>

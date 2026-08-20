@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grammar Simplification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 650px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        textarea,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        
+        button {
+            background: blue;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        
+        #controls button {
+            width: 48%;
+            display: inline-block;
+        }
+        
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: left;
+        }
+        
+        #steps {
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Grammar Simplification</h2>
+        <textarea id="grammarInput" rows="5" placeholder="Enter grammar, e.g., S -> AB | a, A -> aA | ε, B -> bB | b"></textarea>
+        <button onclick="simplifyGrammar()">Simplify Grammar</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next Step</button>
+            <button onclick="resetSteps()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="steps"></div>
+    </div>
+
+    <script>
+        let traversal = {
+            index: 0,
+            steps: [],
+            grammar: {},
+            currentGrammar: {},
+            terminals: new Set(),
+            variables: new Set()
+        };
+
+        function parseGrammar(input) {
+            const productions = {};
+            const terminals = new Set();
+            const variables = new Set();
+            const lines = input.split('\n').map(line => line.trim()).filter(line => line);
+
+            for (let line of lines) {
+                const [left, right] = line.split('->').map(s => s.trim());
+                if (!left || !right) continue;
+                const variable = left;
+                variables.add(variable);
+                const rules = right.split('|').map(r => r.trim());
+                productions[variable] = rules;
+
+                for (let rule of rules) {
+                    for (let char of rule) {
+                        if (/[a-z]/.test(char)) terminals.add(char);
+                        else if (/[A-Z]/.test(char)) variables.add(char);
+                    }
+                }
+            }
+
+            return {
+                productions,
+                terminals,
+                variables
+            };
+        }
+
+        function removeEpsilonProductions(grammar, terminals, variables) {
+            const nullable = new Set();
+            let changed;
+            do {
+                changed = false;
+                for (let variable in grammar) {
+                    for (let rule of grammar[variable]) {
+                        if (rule === 'ε' || rule.split('').every(c => nullable.has(c))) {
+                            if (!nullable.has(variable)) {
+                                nullable.add(variable);
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            } while (changed);
+
+            const newGrammar = {};
+            for (let variable in grammar) {
+                const newRules = new Set();
+                for (let rule of grammar[variable]) {
+                    if (rule !== 'ε') {
+                        generateCombinations(rule, nullable, newRules);
+                    }
+                }
+                newGrammar[variable] = Array.from(newRules).filter(r => r !== '');
+            }
+
+            return newGrammar;
+        }
+
+        function generateCombinations(rule, nullable, newRules) {
+            newRules.add(rule);
+            for (let i = 0; i < rule.length; i++) {
+                if (nullable.has(rule[i])) {
+                    const newRule = rule.slice(0, i) + rule.slice(i + 1);
+                    generateCombinations(newRule, nullable, newRules);
+                }
+            }
+        }
+
+        function removeUnitProductions(grammar, variables) {
+            const newGrammar = {};
+            for (let variable in grammar) {
+                const reachable = new Set();
+                const nonUnitRules = new Set();
+
+                let queue = [variable];
+                while (queue.length) {
+                    const current = queue.shift();
+                    if (reachable.has(current)) continue;
+                    reachable.add(current);
+                    for (let rule of grammar[current]) {
+                        if (variables.has(rule)) {
+                            queue.push(rule);
+                        } else {
+                            nonUnitRules.add(rule);
+                        }
+                    }
+                }
+
+                newGrammar[variable] = Array.from(nonUnitRules);
+            }
+            return newGrammar;
+        }
+
+        function removeUselessSymbols(grammar, terminals, variables) {
+            let generating = new Set(terminals);
+            let changed;
+            do {
+                changed = false;
+                for (let variable in grammar) {
+                    for (let rule of grammar[variable]) {
+                        if (rule.split('').every(c => generating.has(c) || terminals.has(c))) {
+                            if (!generating.has(variable)) {
+                                generating.add(variable);
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            } while (changed);
+
+            let newGrammar = {};
+            for (let variable in grammar) {
+                if (generating.has(variable)) {
+                    newGrammar[variable] = grammar[variable].filter(rule =>
+                        rule.split('').every(c => generating.has(c) || terminals.has(c))
+                    );
+                }
+            }
+
+            let reachable = new Set(['S']);
+            do {
+                changed = false;
+                for (let variable of reachable) {
+                    if (newGrammar[variable]) {
+                        for (let rule of newGrammar[variable]) {
+                            for (let char of rule) {
+                                if (!reachable.has(char) && variables.has(char)) {
+                                    reachable.add(char);
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            } while (changed);
+
+            const finalGrammar = {};
+            for (let variable in newGrammar) {
+                if (reachable.has(variable)) {
+                    finalGrammar[variable] = newGrammar[variable];
+                }
+            }
+
+            return finalGrammar;
+        }
+
+        function grammarToString(grammar) {
+            const lines = [];
+            for (let variable in grammar) {
+                if (grammar[variable].length > 0) {
+                    lines.push(`${variable} -> ${grammar[variable].join(' | ')}`);
+                }
+            }
+            return lines.join('\n') || 'No productions';
+        }
+
+        function simplifyGrammar() {
+            const input = document.getElementById("grammarInput").value;
+            const resultDiv = document.getElementById("result");
+            traversal.steps = [];
+            traversal.index = 0;
+
+            const {
+                productions,
+                terminals,
+                variables
+            } = parseGrammar(input);
+            if (Object.keys(productions).length === 0) {
+                resultDiv.innerHTML = 'Invalid grammar input';
+                return;
+            }
+
+            traversal.grammar = JSON.parse(JSON.stringify(productions));
+            traversal.terminals = terminals;
+            traversal.variables = variables;
+            traversal.currentGrammar = JSON.parse(JSON.stringify(productions));
+
+            traversal.steps.push({
+                step: 'Initial Grammar',
+                grammar: grammarToString(traversal.currentGrammar)
+            });
+
+            traversal.currentGrammar = removeEpsilonProductions(traversal.currentGrammar, terminals, variables);
+            traversal.steps.push({
+                step: 'After Removing ε-Productions',
+                grammar: grammarToString(traversal.currentGrammar)
+            });
+
+            traversal.currentGrammar = removeUnitProductions(traversal.currentGrammar, variables);
+            traversal.steps.push({
+                step: 'After Removing Unit Productions',
+                grammar: grammarToString(traversal.currentGrammar)
+            });
+
+            traversal.currentGrammar = removeUselessSymbols(traversal.currentGrammar, terminals, variables);
+            traversal.steps.push({
+                step: 'Final Simplified Grammar',
+                grammar: grammarToString(traversal.currentGrammar)
+            });
+
+            resultDiv.innerHTML = `<pre>Simplified Grammar:\n${grammarToString(traversal.currentGrammar)}</pre>`;
+            updateSteps();
+        }
+
+        function updateSteps() {
+            const step = traversal.steps[traversal.index];
+            if (!step) return;
+            document.getElementById("steps").innerHTML = `
+                <strong>Step: ${step.step}</strong><br>
+                <pre>${step.grammar}</pre>`;
+        }
+
+        function nextStep() {
+            if (traversal.index < traversal.steps.length - 1) {
+                traversal.index++;
+                updateSteps();
+            }
+        }
+
+        function resetSteps() {
+            traversal.index = 0;
+            updateSteps();
+        }
+    </script>
+</body>
+
+</html>

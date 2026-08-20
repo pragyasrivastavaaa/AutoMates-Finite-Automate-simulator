@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools - Finite Automata Simulator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .search-container {
+            position: relative;
+            width: 200px;
+        }
+        
+        .clear-search {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: none;
+        }
+        
+        .clear-search:hover {
+            color: #dc3545;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="bg-primary text-white py-3 px-4 d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center">
+            <img src="css/js/assets/images/automates_logo.jpg" alt="AutoMates Logo" class="logo" style="max-width: 100px; margin-right: 15px;">
+            <div>
+                <h1 class="h3 mb-0">Finite Automata Simulator</h1>
+                <p class="mb-0">A collection of tools for exploring Finite Automata concepts</p>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="d-flex align-items-center search-container">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search tools..." style="width: 100%;">
+            <button class="clear-search" id="clearSearch" title="Clear search">×</button>
+        </div>
+
+        <!-- Dropdown Menu -->
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                Menu
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton">
+                <li><a class="dropdown-item" href="home.html">Home</a></li>
+                <li><a class="dropdown-item active" href="index-tools.html">Tools</a></li>
+                <li><a class="dropdown-item" href="index-about-us.html">About Us</a></li>
+                <li><a class="dropdown-item" href="index-contact-us.html">Contact</a></li>
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
+                <li><a class="dropdown-item" href="index.html">Logout</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container my-4">
+        <h2 class="text-center">Explore Finite Automata Tools</h2>
+        <p class="text-center text-muted">This project provides interactive tools to learn and experiment with Finite Automata concepts, from basic DFA simulation to advanced string matching and visualization.</p>
+
+        <div class="row mt-4" id="toolCards">
+            <!-- Each Tool Card -->
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">DFA Simulator for Language Recognition</h5>
+                        <p class="card-text">Simulate a DFA and test if strings belong to the language.</p>
+                        <a href="dfa-simulator.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">NFA to DFA Conversion Tool</h5>
+                        <p class="card-text">Convert an NFA to a DFA with step-by-step visualization.</p>
+                        <a href="nfa-to-dfa.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">DFA Minimization Visualizer</h5>
+                        <p class="card-text">Minimize a DFA and visualize the process.</p>
+                        <a href="dfa-minimization.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Regular Expression to DFA/NFA Converter</h5>
+                        <p class="card-text">Convert a regex to a DFA or NFA and test strings.</p>
+                        <a href="regex-to-dfa.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Finite Automata for Palindrome Detection</h5>
+                        <p class="card-text">Detect palindromes using a DFA.</p>
+                        <a href="palindrome.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Automata for Token Recognition</h5>
+                        <p class="card-text">Use FA for lexical analysis token recognition.</p>
+                        <a href="token-recognition.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">DFA-based String-Matching Algorithm Simulator</h5>
+                        <p class="card-text">Simulate string matching with a DFA.</p>
+                        <a href="string-match.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Language Recognizer for Balanced Brackets</h5>
+                        <p class="card-text">Recognize balanced brackets using FA.</p>
+                        <a href="grammar-simplification.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Multi-State DFA Simulation with Visualization</h5>
+                        <p class="card-text">Simulate a complex DFA with visualization.</p>
+                        <a href="multi-state-dfa.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-4 tool-card">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">CFG to Normal Form (CNF, GNF)</h5>
+                        <p class="card-text">Convert a context-free grammar to normal form like CNF/GNF.</p>
+                        <a href="cfg-to-normalform.html" class="btn btn-primary">Try It</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-light text-center py-3">
+        <p>Created for Theory of Computation Project</p>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const clearSearch = document.getElementById('clearSearch');
+        const toolCards = document.querySelectorAll('.tool-card');
+
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            clearSearch.style.display = searchTerm ? 'block' : 'none';
+
+            toolCards.forEach(card => {
+                const title = card.querySelector('.card-title').textContent.toLowerCase();
+                const description = card.querySelector('.card-text').textContent.toLowerCase();
+
+                if (title.includes(searchTerm) || description.includes(searchTerm)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+
+        clearSearch.addEventListener('click', function() {
+            searchInput.value = '';
+            clearSearch.style.display = 'none';
+            toolCards.forEach(card => {
+                card.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+
+</html>

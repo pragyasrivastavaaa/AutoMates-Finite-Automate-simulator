@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DFA Minimization Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js" type="application/javascript"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(to bottom, #e0e7ff, #f3f4f6);
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        
+        .container:hover {
+            transform: translateY(-2px);
+        }
+        
+        h2 {
+            color: #1e40af;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-align: center;
+        }
+        
+        input,
+        textarea,
+        button {
+            padding: 12px;
+            margin: 8px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #1e40af;
+            box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        button {
+            background: #1e40af;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #1e3a8a;
+        }
+        
+        #result {
+            margin-top: 15px;
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        #result.error {
+            color: #dc2626;
+        }
+        
+        #result.success {
+            color: #16a34a;
+        }
+        
+        #graphs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .graph-container {
+            flex: 1;
+            min-width: 300px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .graph-container h3 {
+            margin: 0 0 10px;
+            font-size: 18px;
+            color: #374151;
+        }
+        
+        label {
+            display: block;
+            text-align: left;
+            margin: 8px 0 4px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            h2 {
+                font-size: 20px;
+            }
+            input,
+            textarea,
+            button {
+                font-size: 14px;
+            }
+            .graph-container {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>DFA Minimization Visualizer</h2>
+        <label for="statesInput">States (e.g., 0,1,2):</label>
+        <input id="statesInput" placeholder="Enter states (e.g., 0,1,2)" />
+        <label for="alphabetInput">Alphabet (e.g., a,b):</label>
+        <input id="alphabetInput" placeholder="Enter alphabet (e.g., a,b)" />
+        <label for="transitionsInput">Transitions (one per line, e.g., 0,a,0):</label>
+        <textarea id="transitionsInput" placeholder="Enter transitions, one per line (e.g., 0,a,0\n0,b,1\n1,a,0\n1,b,2\n2,a,2\n2,b,2)"></textarea>
+        <button onclick="minimizeDFA()">Minimize DFA</button>
+        <div id="result"></div>
+        <div id="graphs">
+            <div class="graph-container">
+                <h3>Original DFA</h3>
+                <div id="originalGraph"></div>
+            </div>
+            <div class="graph-container">
+                <h3>Minimized DFA</h3>
+                <div id="minimizedGraph"></div>
+            </div>
+        </div>
+        <button onclick="exportDiagram('original', 'svg')">Export Original DFA as SVG</button>
+        <button onclick="exportDiagram('original', 'png')">Export Original DFA as PNG</button>
+        <button onclick="exportDiagram('minimized', 'svg')">Export Minimized DFA as SVG</button>
+        <button onclick="exportDiagram('minimized', 'png')">Export Minimized DFA as PNG</button>
+    </div>
+
+    <script>
+        // Global DFA object
+        let dfaData = {
+            original: {
+                dfa: {},
+                states: [],
+                alphabet: [],
+                startState: 0,
+                acceptStates: []
+            },
+            minimized: {
+                dfa: {},
+                states: [],
+                alphabet: [],
+                startState: 0,
+                acceptStates: []
+            }
+        };
+
+        // Check if Viz.js loaded
+        if (typeof Viz === 'undefined') {
+            console.error("Viz.js failed to load. Diagram rendering will not work.");
+            document.getElementById("result").innerHTML = "Error: Viz.js not loaded. Please check your internet connection or use local scripts.";
+            document.getElementById("result").className = "error";
+        } else {
+            console.log("Viz.js loaded successfully.");
+        }
+
+        function parseDFAInput() {
+            console.log("Parsing DFA input...");
+            try {
+                let statesInput = document.getElementById("statesInput").value.trim();
+                let alphabetInput = document.getElementById("alphabetInput").value.trim();
+                let transitionsInput = document.getElementById("transitionsInput").value.trim();
+
+                // Validate non-empty inputs
+                if (!statesInput) {
+                    throw new Error("States field cannot be empty.");
+                }
+                if (!alphabetInput) {
+                    throw new Error("Alphabet field cannot be empty.");
+                }
+                if (!transitionsInput) {
+                    throw new Error("Transitions field cannot be empty.");
+                }
+
+                // Parse inputs
+                let states = statesInput.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+                if (states.length === 0) {
+                    throw new Error("No valid states provided. Use comma-separated numbers (e.g., 0,1,2).");
+                }
+                console.log("States:", states);
+
+                let alphabet = alphabetInput.split(',').map(s => s.trim()).filter(s => s);
+                if (alphabet.length === 0) {
+                    throw new Error("No valid alphabet symbols provided. Use comma-separated symbols (e.g., a,b).");
+                }
+                console.log("Alphabet:", alphabet);
+
+                let transitions = transitionsInput.split('\n').map(t => t.trim()).filter(t => t);
+                if (transitions.length === 0) {
+                    throw new Error("No valid transitions provided. Use one transition per line (e.g., 0,a,0).");
+                }
+                console.log("Transitions:", transitions);
+
+                let dfa = {};
+                states.forEach(s => dfa[s] = {});
+                let startState = 0;
+                let acceptStates = [Math.max(...states)];
+
+                // Parse transitions
+                for (let t of transitions) {
+                    let [from, char, to] = t.split(',').map(s => s.trim());
+                    from = parseInt(from);
+                    to = parseInt(to);
+                    if (isNaN(from) || isNaN(to) || !char) {
+                        throw new Error(`Invalid transition format: ${t}. Expected format: state,symbol,state (e.g., 0,a,0).`);
+                    }
+                    if (!states.includes(from) || !states.includes(to)) {
+                        throw new Error(`Invalid state in transition: ${t}. States must be in [${states}].`);
+                    }
+                    if (!alphabet.includes(char)) {
+                        throw new Error(`Invalid symbol in transition: ${t}. Symbol must be in [${alphabet}].`);
+                    }
+                    dfa[from][char] = to;
+                }
+
+                // Validate DFA
+                if (!states.includes(startState)) {
+                    throw new Error(`Start state ${startState} is not in the defined states [${states}].`);
+                }
+                for (let state of states) {
+                    for (let char of alphabet) {
+                        if (dfa[state][char] === undefined) {
+                            throw new Error(`Missing transition for state ${state} on input ${char}.`);
+                        }
+                    }
+                }
+
+                console.log("DFA parsed successfully:", dfa);
+                return {
+                    dfa,
+                    states,
+                    alphabet,
+                    startState,
+                    acceptStates
+                };
+            } catch (e) {
+                console.error("Parse error:", e.message);
+                throw new Error(e.message);
+            }
+        }
+
+        function minimizeDFA() {
+            console.log("Minimizing DFA...");
+            let resultDiv = document.getElementById("result");
+
+            try {
+                // Parse original DFA
+                dfaData.original = parseDFAInput();
+                let {
+                    dfa,
+                    states,
+                    alphabet,
+                    startState,
+                    acceptStates
+                } = dfaData.original;
+
+                // Step 1: Remove unreachable states
+                let reachable = new Set([startState]);
+                let queue = [startState];
+                while (queue.length > 0) {
+                    let state = queue.shift();
+                    for (let char of alphabet) {
+                        let nextState = dfa[state][char];
+                        if (!reachable.has(nextState)) {
+                            reachable.add(nextState);
+                            queue.push(nextState);
+                        }
+                    }
+                }
+                states = states.filter(s => reachable.has(s));
+                let newDfa = {};
+                states.forEach(s => newDfa[s] = {});
+                for (let state of states) {
+                    for (let char of alphabet) {
+                        newDfa[state][char] = dfa[state][char];
+                    }
+                }
+                dfa = newDfa;
+                acceptStates = acceptStates.filter(s => reachable.has(s));
+
+                // Step 2: Partition refinement
+                let partitions = [new Set(acceptStates), new Set(states.filter(s => !acceptStates.includes(s)))];
+                partitions = partitions.filter(p => p.size > 0);
+                let worklist = [...partitions];
+
+                while (worklist.length > 0) {
+                    let current = worklist.shift();
+                    for (let char of alphabet) {
+                        let inverse = new Map();
+                        for (let state of states) {
+                            let nextState = dfa[state][char];
+                            let nextPartition = partitions.findIndex(p => p.has(nextState));
+                            if (!inverse.has(nextPartition)) {
+                                inverse.set(nextPartition, new Set());
+                            }
+                            inverse.get(nextPartition).add(state);
+                        }
+
+                        for (let i = 0; i < partitions.length; i++) {
+                            let partition = partitions[i];
+                            let splits = new Map();
+                            for (let state of partition) {
+                                let nextPartition = partitions.findIndex(p => p.has(dfa[state][char]));
+                                if (!splits.has(nextPartition)) {
+                                    splits.set(nextPartition, new Set());
+                                }
+                                splits.get(nextPartition).add(state);
+                            }
+
+                            if (splits.size > 1) {
+                                partitions.splice(i, 1);
+                                let newPartitions = [...splits.values()].filter(s => s.size > 0);
+                                partitions.push(...newPartitions);
+                                worklist.push(...newPartitions);
+                                i--;
+                            }
+                        }
+                    }
+                }
+
+                // Step 3: Construct minimized DFA
+                let minDfa = {};
+                let minStates = partitions.map((_, i) => i);
+                let minStartState = partitions.findIndex(p => p.has(startState));
+                let minAcceptStates = partitions
+                    .map((p, i) => acceptStates.some(s => p.has(s)) ? i : null)
+                    .filter(s => s !== null);
+
+                minStates.forEach(s => minDfa[s] = {});
+                for (let i = 0; i < partitions.length; i++) {
+                    let rep = [...partitions[i]][0]; // Representative state
+                    for (let char of alphabet) {
+                        let nextState = dfa[rep][char];
+                        let nextPartition = partitions.findIndex(p => p.has(nextState));
+                        minDfa[i][char] = nextPartition;
+                    }
+                }
+
+                dfaData.minimized = {
+                    dfa: minDfa,
+                    states: minStates,
+                    alphabet: alphabet,
+                    startState: minStartState,
+                    acceptStates: minAcceptStates
+                };
+
+                // Display result
+                let stateReduction = states.length - minStates.length;
+                resultDiv.innerHTML = `Minimization complete. States reduced from ${states.length} to ${minStates.length}.`;
+                resultDiv.className = "success";
+
+                console.log("Minimization complete. Original states:", states.length, "Minimized states:", minStates.length);
+                renderDiagrams();
+            } catch (e) {
+                console.error("Minimization error:", e.message);
+                resultDiv.innerHTML = `Error: ${e.message}`;
+                resultDiv.className = "error";
+            }
+        }
+
+        function generateDOT(type) {
+            console.log(`generateDOT called for ${type}`);
+            let data = dfaData[type];
+            let dot = 'digraph DFA {\nrankdir=LR;\nnode [shape=circle fontname="Arial"];\n';
+            dot += `node [shape = doublecircle]; ${data.acceptStates.join(" ")};\n`;
+            dot += 'node [shape = circle];\nstart [shape=point];\n';
+            dot += `start -> ${data.startState};\n`;
+
+            for (let state of data.states) {
+                for (let char of data.alphabet) {
+                    let target = data.dfa[state][char];
+                    if (target !== undefined) {
+                        dot += `${state} -> ${target} [label="${char}"];\n`;
+                    }
+                }
+                dot += `${state} [label="${state}"];\n`;
+            }
+
+            dot += '}';
+            return dot;
+        }
+
+        function renderDiagrams() {
+            console.log("renderDiagrams called");
+            if (typeof Viz === 'undefined') {
+                document.getElementById("originalGraph").innerHTML = "Error: Viz.js not loaded.";
+                document.getElementById("minimizedGraph").innerHTML = "Error: Viz.js not loaded.";
+                return;
+            }
+
+            // Render original DFA
+            let originalDot = generateDOT('original');
+            new Viz().renderSVGElement(originalDot).then(svg => {
+                document.getElementById("originalGraph").innerHTML = '';
+                document.getElementById("originalGraph").appendChild(svg);
+            }).catch(err => {
+                console.error("Original diagram rendering error:", err);
+                document.getElementById("originalGraph").innerHTML = "Error rendering original diagram.";
+            });
+
+            // Render minimized DFA
+            let minimizedDot = generateDOT('minimized');
+            new Viz().renderSVGElement(minimizedDot).then(svg => {
+                document.getElementById("minimizedGraph").innerHTML = '';
+                document.getElementById("minimizedGraph").appendChild(svg);
+            }).catch(err => {
+                console.error("Minimized diagram rendering error:", err);
+                document.getElementById("minimizedGraph").innerHTML = "Error rendering minimized diagram.";
+            });
+        }
+
+        function exportDiagram(type, format) {
+            console.log(`exportDiagram called, type: ${type}, format: ${format}`);
+            let dot = generateDOT(type);
+            if (typeof Viz === 'undefined') {
+                document.getElementById("result").innerHTML = "Error: Cannot export, Viz.js not loaded.";
+                document.getElementById("result").className = "error";
+                return;
+            }
+            let viz = new Viz();
+            if (format === 'svg') {
+                viz.renderSVGElement(dot).then(svg => {
+                    let serializer = new XMLSerializer();
+                    let source = serializer.serializeToString(svg);
+                    let blob = new Blob([source], {
+                        type: 'image/svg+xml;charset=utf-8'
+                    });
+                    let url = URL.createObjectURL(blob);
+                    let link = document.createElement("a");
+                    link.href = url;
+                    link.download = `${type}_dfa.svg`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }).catch(err => {
+                    console.error(`${format.toUpperCase()} export error for ${type}:`, err);
+                });
+            } else if (format === 'png') {
+                viz.renderImageElement(dot).then(img => {
+                    let link = document.createElement("a");
+                    link.href = img.src;
+                    link.download = `${type}_dfa.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }).catch(err => {
+                    console.error(`${format.toUpperCase()} export error for ${type}:`, err);
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NFA to DFA Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js" type="application/javascript"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 650px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        input,
+        textarea,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        
+        textarea {
+            height: 80px;
+        }
+        
+        button {
+            background: blue;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        
+        #controls button {
+            width: 48%;
+            display: inline-block;
+        }
+        
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        #visual {
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        #nfaGraph,
+        #dfaGraph {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>NFA to DFA Converter</h2>
+        <input id="statesInput" placeholder="States (e.g., q0,q1,q2)" />
+        <input id="alphabetInput" placeholder="Alphabet (e.g., a,b)" />
+        <textarea id="transitionsInput" placeholder="Transitions (e.g., q0,a,q1\nq0,a,q2)"></textarea>
+        <input id="startStateInput" placeholder="Start State (e.g., q0)" />
+        <input id="acceptStatesInput" placeholder="Accept States (e.g., q2)" />
+        <button onclick="convertNFAtoDFA()">Convert NFA to DFA</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next</button>
+            <button onclick="resetTraversal()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="visual"></div>
+        <div id="nfaGraph"></div>
+        <div id="dfaGraph"></div>
+        <button onclick="exportDiagram('nfa', 'svg')">Export NFA as SVG</button>
+        <button onclick="exportDiagram('nfa', 'png')">Export NFA as PNG</button>
+        <button onclick="exportDiagram('dfa', 'svg')">Export DFA as SVG</button>
+        <button onclick="exportDiagram('dfa', 'png')">Export DFA as PNG</button>
+    </div>
+
+    <script>
+        let conversion = {
+            index: 0,
+            states: [],
+            alphabet: [],
+            transitions: [],
+            startState: "",
+            acceptStates: [],
+            dfaStates: [],
+            dfaTransitions: [],
+            dfaStartState: "",
+            dfaAcceptStates: [],
+            steps: []
+        };
+
+        function convertNFAtoDFA() {
+            let statesInput = document.getElementById("statesInput").value;
+            let alphabetInput = document.getElementById("alphabetInput").value;
+            let transitionsInput = document.getElementById("transitionsInput").value;
+            let startStateInput = document.getElementById("startStateInput").value;
+            let acceptStatesInput = document.getElementById("acceptStatesInput").value;
+            let resultDiv = document.getElementById("result");
+            let visualDiv = document.getElementById("visual");
+
+            if (!statesInput || !alphabetInput || !transitionsInput || !startStateInput || !acceptStatesInput) {
+                resultDiv.innerHTML = "Error: All fields must be filled.";
+                return;
+            }
+
+            conversion.states = statesInput.split(",").map(s => s.trim()).filter(s => s);
+            conversion.alphabet = alphabetInput.split(",").map(s => s.trim()).filter(s => s);
+            conversion.transitions = transitionsInput.split("\n").map(t => t.trim()).filter(t => t);
+            conversion.startState = startStateInput.trim();
+            conversion.acceptStates = acceptStatesInput.split(",").map(s => s.trim()).filter(s => s);
+            conversion.index = 0;
+            conversion.dfaStates = [];
+            conversion.dfaTransitions = [];
+            conversion.dfaStartState = "";
+            conversion.dfaAcceptStates = [];
+            conversion.steps = [];
+
+            for (let transition of conversion.transitions) {
+                let parts = transition.split(",");
+                if (parts.length !== 3) {
+                    resultDiv.innerHTML = `Error: Invalid transition format "${transition}". Expected: from,symbol,to`;
+                    return;
+                }
+                let [from, symbol, to] = parts.map(p => p.trim());
+                if (!conversion.states.includes(from) || !conversion.states.includes(to) || !conversion.alphabet.includes(symbol)) {
+                    resultDiv.innerHTML = `Error: Transition "${transition}" contains invalid states or symbol.`;
+                    return;
+                }
+            }
+
+            if (!conversion.states.includes(conversion.startState)) {
+                resultDiv.innerHTML = `Error: Start state "${conversion.startState}" not in states list.`;
+                return;
+            }
+            for (let acceptState of conversion.acceptStates) {
+                if (!conversion.states.includes(acceptState)) {
+                    resultDiv.innerHTML = `Error: Accept state "${acceptState}" not in states list.`;
+                    return;
+                }
+            }
+
+            let stateMap = new Map();
+            let dfaStates = [];
+            let dfaTransitions = [];
+            let queue = [
+                [conversion.startState]
+            ];
+            stateMap.set([conversion.startState].sort().join(","), "q0");
+            dfaStates.push("q0");
+            let stateCounter = 1;
+
+            while (queue.length > 0) {
+                let currentStateSet = queue.shift();
+                let currentStateKey = currentStateSet.sort().join(",");
+                let currentStateName = stateMap.get(currentStateKey);
+
+                conversion.steps.push({
+                    dfaState: currentStateName,
+                    nfaStates: currentStateSet,
+                    transitions: []
+                });
+
+                for (let symbol of conversion.alphabet) {
+                    let nextStateSet = new Set();
+                    for (let state of currentStateSet) {
+                        for (let transition of conversion.transitions) {
+                            let [from, sym, to] = transition.split(",");
+                            if (from === state && sym === symbol) {
+                                nextStateSet.add(to);
+                            }
+                        }
+                    }
+                    let nextStateArray = Array.from(nextStateSet);
+                    if (nextStateArray.length > 0) {
+                        let nextKey = nextStateArray.sort().join(",");
+                        let nextStateName;
+                        if (!stateMap.has(nextKey)) {
+                            nextStateName = `q${stateCounter++}`;
+                            stateMap.set(nextKey, nextStateName);
+                            dfaStates.push(nextStateName);
+                            queue.push(nextStateArray);
+                        } else {
+                            nextStateName = stateMap.get(nextKey);
+                        }
+                        dfaTransitions.push(`${currentStateName},${symbol},${nextStateName}`);
+                        conversion.steps[conversion.steps.length - 1].transitions.push({
+                            symbol: symbol,
+                            to: nextStateName,
+                            nfaStates: nextStateArray
+                        });
+                    }
+                }
+            }
+
+            let dfaAcceptStates = [];
+            stateMap.forEach((dfaState, nfaStatesKey) => {
+                let nfaStates = nfaStatesKey.split(",");
+                if (nfaStates.some(s => conversion.acceptStates.includes(s))) {
+                    dfaAcceptStates.push(dfaState);
+                }
+            });
+
+            conversion.dfaStates = dfaStates;
+            conversion.dfaTransitions = dfaTransitions;
+            conversion.dfaStartState = "q0";
+            conversion.dfaAcceptStates = dfaAcceptStates;
+
+            resultDiv.innerHTML = `<strong>DFA:</strong><br>States: ${dfaStates.join(", ")}<br>Start State: ${conversion.dfaStartState}<br>Accept States: ${dfaAcceptStates.join(", ")}<br>Transitions:<br>${dfaTransitions.join("<br>")}`;
+
+            updateVisual();
+            renderNFADiagram();
+            renderDFADiagram();
+        }
+
+        function updateVisual() {
+            const step = conversion.steps[conversion.index];
+            if (!step) return;
+            let transitionsText = step.transitions.map(t => `Symbol '${t.symbol}': ${step.dfaState} → ${t.to} (NFA states: ${t.nfaStates.join(",")})`).join("<br>");
+            document.getElementById("visual").innerHTML = `<strong>Conversion Step:</strong><br>DFA State ${step.dfaState} (NFA states: ${step.nfaStates.join(",")})<br>Transitions:<br>${transitionsText || "None"}`;
+        }
+
+        function nextStep() {
+            if (conversion.index < conversion.steps.length - 1) {
+                conversion.index++;
+                updateVisual();
+            }
+        }
+
+        function resetTraversal() {
+            conversion.index = 0;
+            updateVisual();
+        }
+
+        function generateNFADOT() {
+            let dot = `digraph NFA {\nrankdir=LR;\nnode [shape=circle fontname="Arial"]\nnode [shape = doublecircle]; ${conversion.acceptStates.join(" ")};\nnode [shape = circle];\nstart [shape=point];\nstart -> "${conversion.startState}";\n`;
+            for (let transition of conversion.transitions) {
+                let [from, symbol, to] = transition.split(",");
+                dot += `${from} -> ${to} [label="${symbol}"];\n`;
+            }
+            dot += `}`;
+            return dot;
+        }
+
+        function generateDFADOT() {
+            let dot = `digraph DFA {\nrankdir=LR;\nnode [shape=circle fontname="Arial"]\nnode [shape = doublecircle]; ${conversion.dfaAcceptStates.join(" ")};\nnode [shape = circle];\nstart [shape=point];\nstart -> "${conversion.dfaStartState}";\n`;
+            for (let state of conversion.dfaStates) {
+                let step = conversion.steps.find(s => s.dfaState === state);
+                let nfaStates = step ? step.nfaStates.join(",") : "";
+                dot += `${state} [label="${state}\\n(${nfaStates})"];\n`;
+            }
+            for (let transition of conversion.dfaTransitions) {
+                let [from, symbol, to] = transition.split(",");
+                dot += `${from} -> ${to} [label="${symbol}"];\n`;
+            }
+            dot += `}`;
+            return dot;
+        }
+
+        function renderNFADiagram() {
+            if (!conversion.states.length) return;
+            let dot = generateNFADOT();
+            new Viz().renderSVGElement(dot).then(svg => {
+                document.getElementById("nfaGraph").innerHTML = '<h3>NFA Diagram</h3>';
+                document.getElementById("nfaGraph").appendChild(svg);
+            }).catch(err => {
+                console.error(err);
+                document.getElementById("nfaGraph").innerHTML = "Error rendering NFA diagram.";
+            });
+        }
+
+        function renderDFADiagram() {
+            if (!conversion.dfaStates.length) return;
+            let dot = generateDFADOT();
+            new Viz().renderSVGElement(dot).then(svg => {
+                document.getElementById("dfaGraph").innerHTML = '<h3>DFA Diagram</h3>';
+                document.getElementById("dfaGraph").appendChild(svg);
+            }).catch(err => {
+                console.error(err);
+                document.getElementById("dfaGraph").innerHTML = "Error rendering DFA diagram.";
+            });
+        }
+
+        function exportDiagram(type, format) {
+            let dot = type === 'nfa' ? generateNFADOT() : generateDFADOT();
+            let viz = new Viz();
+            if (format === 'svg') {
+                viz.renderSVGElement(dot).then(svg => {
+                    let serializer = new XMLSerializer();
+                    let source = serializer.serializeToString(svg);
+                    let blob = new Blob([source], {
+                        type: 'image/svg+xml;charset=utf-8'
+                    });
+                    let url = URL.createObjectURL(blob);
+                    let link = document.createElement("a");
+                    link.href = url;
+                    link.download = `${type}.svg`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            } else if (format === 'png') {
+                viz.renderImageElement(dot).then(img => {
+                    let link = document.createElement("a");
+                    link.href = img.src;
+                    link.download = `${type}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>

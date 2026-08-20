@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' http://localhost:3000;">
+    <title>Finite Automata Simulator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <header class="bg-primary text-white py-3 d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center">
+            <img src="css/js/assets/images/automates_logo.jpg" alt="AutoMates Logo" class="logo me-3" style="max-width: 150px;">
+            <h1>Finite Automata Simulator</h1>
+        </div>
+        <!-- Button for Navigation and Logout -->
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="navbarDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                Menu
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                <li><a class="dropdown-item" href="home.html">Home</a></li>
+                <li><a class="dropdown-item" href="index-tools.html">Tools</a></li>
+                <li><a class="dropdown-item" href="index-about-us.html">About Us</a></li>
+                <li><a class="dropdown-item" href="index-contact-us.html">Contact</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="index.html">Logout</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <main class="container my-5">
+        <section class="text-center">
+            <h2 class="display-4 mb-4">Welcome to AutoMates</h2>
+            <p class="lead mb-5">Explore the world of finite automata with our advanced, interactive simulator designed for theory and practice in automata theory.</p>
+
+            <!-- Professional Features Section -->
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">Interactive Simulator</h5>
+                            <p class="card-text">Experience automata theory with real-time simulations and visualizations that help you understand finite automata concepts in-depth.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">Advanced Tools</h5>
+                            <p class="card-text">Utilize advanced tools for automata construction, state diagrams, and simulations to test various scenarios in theory of computation.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">Theory and Documentation</h5>
+                            <p class="card-text">Access comprehensive documentation and tutorials to deepen your understanding of automata theory, including DFA, NFA, and more.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Call to Action Section -->
+        <section class="text-center mt-5">
+            <h4 class="mb-4">Get Started with AutoMates</h4>
+            <p>Join the growing community of students and professionals exploring the power of finite automata through our easy-to-use simulator and tools.</p>
+            <a href="index-tools.html" class="btn btn-primary btn-lg mt-3">Start Using Tools</a>
+        </section>
+
+        <!-- Official Quote -->
+        <blockquote class="blockquote text-center mt-5">
+            <p>"Automata theory is the foundation of computational logic."</p>
+            <footer class="blockquote-footer">AutoMates Team</footer>
+        </blockquote>
+    </main>
+
+    <footer class="bg-light text-center py-3">
+        <p>Created for Theory of Computation Project</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Handle logout
+        document.getElementById('logout-button').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            showNotification('success', 'Logged out successfully');
+        });
+
+        // Show notification
+        function showNotification(type, message) {
+            const notification = document.getElementById('notification');
+            notification.className = `alert alert-${type} alert-dismissible fade show`;
+            notification.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            notification.classList.remove('d-none');
+            setTimeout(() => notification.classList.add('d-none'), 5000);
+        }
+
+        // Check for notifications in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const message = urlParams.get('message');
+        const type = urlParams.get('type');
+        if (message && type) {
+            showNotification(type, message);
+            // Clear URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    </script>
+</body>
+
+</html>

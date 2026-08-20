@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DFA String Matcher (Enhanced)</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js" type="application/javascript"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 650px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        input,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        
+        button {
+            background: blue;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        
+        #controls button {
+            width: 48%;
+            display: inline-block;
+        }
+        
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        #visual {
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        #highlightedText span {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .match {
+            background: lightgreen;
+        }
+        
+        .current {
+            background: yellow;
+        }
+        
+        #graph {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>DFA String Matcher (Enhanced)</h2>
+
+        <input id="textInput" placeholder="Enter text" />
+        <input id="patternInput" placeholder="Enter pattern" />
+        <button onclick="findMatches()">Build DFA & Match</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next</button>
+            <button onclick="resetTraversal()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="highlightedText"></div>
+        <div id="visual"></div>
+        <div id="graph"></div>
+        <button onclick="exportDiagram('svg')">Export DFA as SVG</button>
+        <button onclick="exportDiagram('png')">Export DFA as PNG</button>
+    </div>
+
+    <script>
+        let traversal = {
+            index: 0,
+            state: 0,
+            text: "",
+            pattern: "",
+            dfa: [],
+            matches: [],
+            steps: [],
+            alphabet: new Set()
+        };
+
+        function computeDFA(pattern, alphabet) {
+            let m = pattern.length;
+            let dfa = Array.from({
+                length: m + 1
+            }, () => ({}));
+            dfa[0][pattern[0]] = 1;
+            let X = 0;
+
+            for (let j = 1; j < m; j++) {
+                for (let ch of alphabet) {
+                    dfa[j][ch] = dfa[X][ch] || 0;
+                }
+                dfa[j][pattern[j]] = j + 1;
+                X = dfa[X][pattern[j]] || 0;
+            }
+
+            for (let ch of alphabet) {
+                dfa[m][ch] = dfa[X][ch] || 0;
+            }
+
+            return dfa;
+        }
+
+        function findMatches() {
+            let text = document.getElementById("textInput").value;
+            let pattern = document.getElementById("patternInput").value;
+            let resultDiv = document.getElementById("result");
+            let visualDiv = document.getElementById("visual");
+            let graphDiv = document.getElementById("graph");
+            traversal.index = 0;
+            traversal.state = 0;
+            traversal.text = text;
+            traversal.pattern = pattern;
+            traversal.alphabet = new Set([...text, ...pattern]);
+            traversal.dfa = computeDFA(pattern, traversal.alphabet);
+            traversal.matches = [];
+            traversal.steps = [];
+
+            // Precompute steps for visualization
+            let state = 0;
+            for (let i = 0; i < text.length; i++) {
+                let ch = text[i];
+                let prevState = state;
+                state = traversal.dfa[state][ch] || 0;
+                traversal.steps.push({
+                    index: i,
+                    char: ch,
+                    from: prevState,
+                    to: state
+                });
+                if (state === pattern.length) {
+                    traversal.matches.push(i - pattern.length + 1);
+                }
+            }
+
+            resultDiv.innerHTML = traversal.matches.length ?
+                `Matches found at indices: ${traversal.matches.join(", ")}` :
+                "No matches found";
+
+            updateVisual();
+            renderDiagram();
+            renderHighlightedText();
+        }
+
+        function updateVisual() {
+            const step = traversal.steps[traversal.index];
+            if (!step) return;
+            document.getElementById("visual").innerHTML =
+                `<strong>DFA Step:</strong><br>
+    Reading '${step.char}' at index ${step.index}: State ${step.from} → ${step.to}`;
+            renderHighlightedText();
+        }
+
+        function renderHighlightedText() {
+            const text = traversal.text;
+            const patternLen = traversal.pattern.length;
+            const cur = traversal.index;
+            const output = [];
+            for (let i = 0; i < text.length; i++) {
+                let cls = '';
+                if (traversal.matches.includes(i)) {
+                    cls = 'match';
+                }
+                if (i === cur) {
+                    cls += ' current';
+                }
+                output.push(`<span class="${cls}">${text[i]}</span>`);
+            }
+            document.getElementById("highlightedText").innerHTML = output.join('');
+        }
+
+        function nextStep() {
+            if (traversal.index < traversal.text.length) {
+                traversal.index++;
+                updateVisual();
+            }
+        }
+
+        function resetTraversal() {
+            traversal.index = 0;
+            traversal.state = 0;
+            updateVisual();
+        }
+
+        function generateDOT(dfa, pattern, alphabet) {
+            let dot = 'digraph DFA {\nrankdir=LR;\nnode [shape=circle fontname="Arial"];\n';
+            let final = pattern.length;
+            dot += `node [shape = doublecircle]; ${final};\n`;
+            dot += 'node [shape = circle];\nstart [shape=point];\nstart -> 0;\n';
+
+            for (let state = 0; state < dfa.length; state++) {
+                for (let ch of alphabet) {
+                    let target = dfa[state][ch];
+                    if (target !== undefined) {
+                        dot += `${state} -> ${target} [label="${ch}"];\n`;
+                    }
+                }
+                let label = `State ${state}`;
+                let tooltip = state === final ? `Accepting (prefix '${pattern}')` : `Prefix matched: '${pattern.slice(0, state)}'`;
+                dot += `${state} [label="${state}", tooltip="${tooltip}"];\n`;
+            }
+
+            dot += '}';
+            return dot;
+        }
+
+        function renderDiagram() {
+            let dot = generateDOT(traversal.dfa, traversal.pattern, traversal.alphabet);
+            new Viz().renderSVGElement(dot).then(svg => {
+                document.getElementById("graph").innerHTML = '';
+                document.getElementById("graph").appendChild(svg);
+            }).catch(err => {
+                console.error(err);
+                document.getElementById("graph").innerHTML = "Error rendering diagram.";
+            });
+        }
+
+        function exportDiagram(format) {
+            let dot = generateDOT(traversal.dfa, traversal.pattern, traversal.alphabet);
+            let viz = new Viz();
+            if (format === 'svg') {
+                viz.renderSVGElement(dot).then(svg => {
+                    let serializer = new XMLSerializer();
+                    let source = serializer.serializeToString(svg);
+                    let blob = new Blob([source], {
+                        type: 'image/svg+xml;charset=utf-8'
+                    });
+                    let url = URL.createObjectURL(blob);
+                    let link = document.createElement("a");
+                    link.href = url;
+                    link.download = "dfa.svg";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            } else if (format === 'png') {
+                viz.renderImageElement(dot).then(img => {
+                    let link = document.createElement("a");
+                    link.href = img.src;
+                    link.download = "dfa.png";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+        }
+    </script>
+
+</body>
+
+</html>

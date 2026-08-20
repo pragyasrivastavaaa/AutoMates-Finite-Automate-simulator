@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Token Lexical Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js" type="application/javascript"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 650px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        input,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        
+        button {
+            background: blue;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        
+        #controls button {
+            width: 48%;
+            display: inline-block;
+        }
+        
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        #visual {
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        #highlightedText span {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .current {
+            background: yellow;
+        }
+        
+        .accepted {
+            background: lightgreen;
+        }
+        
+        #graph {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>DFA String Recognizer</h2>
+        <input id="statesInput" placeholder="Enter states (comma-separated)" />
+        <input id="alphabetInput" placeholder="Enter alphabet (comma-separated)" />
+        <input id="startStateInput" placeholder="Enter start state" />
+        <input id="finalStatesInput" placeholder="Enter final states (comma-separated)" />
+        <input id="transitionsInput" placeholder="Enter transitions (state,symbol,next_state; ...)" />
+        <button onclick="buildDFA()">Build DFA</button>
+        <input id="testInput" placeholder="Enter test string" />
+        <div id="controls">
+            <button onclick="nextStep()">Next Step</button>
+            <button onclick="resetTraversal()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="highlightedText"></div>
+        <div id="visual"></div>
+        <div id="graph"></div>
+        <button onclick="exportDiagram('svg')">Export DFA as SVG</button>
+        <button onclick="exportDiagram('png')">Export DFA as PNG</button>
+    </div>
+
+    <script>
+        let automata = {
+            states: [],
+            alphabet: [],
+            transitions: {},
+            start_state: "",
+            final_states: [],
+            current_state: "",
+            test_string: "",
+            index: 0,
+            steps: [],
+            accepted: false
+        };
+
+        function buildDFA() {
+            let states = document.getElementById("statesInput").value.split(',').map(s => s.trim());
+            let alphabet = document.getElementById("alphabetInput").value.split(',').map(s => s.trim());
+            let start_state = document.getElementById("startStateInput").value.trim();
+            let final_states = document.getElementById("finalStatesInput").value.split(',').map(s => s.trim());
+            let transitions_input = document.getElementById("transitionsInput").value.split(';').map(t => t.trim());
+            let resultDiv = document.getElementById("result");
+
+            // Validate inputs
+            if (!states.length || !alphabet.length || !start_state || !final_states.length) {
+                resultDiv.innerHTML = "Please fill in all fields.";
+                return;
+            }
+            if (!states.includes(start_state)) {
+                resultDiv.innerHTML = "Start state must be one of the states.";
+                return;
+            }
+            if (!final_states.every(fs => states.includes(fs))) {
+                resultDiv.innerHTML = "All final states must be valid states.";
+                return;
+            }
+
+            // Parse transitions
+            let transitions = {};
+            for (let t of transitions_input) {
+                if (!t) continue;
+                let [current_state, symbol, next_state] = t.split(',').map(s => s.trim());
+                if (!states.includes(current_state) || !states.includes(next_state)) {
+                    resultDiv.innerHTML = `Invalid state in transition: ${t}`;
+                    return;
+                }
+                if (!alphabet.includes(symbol)) {
+                    resultDiv.innerHTML = `Invalid symbol in transition: ${t}`;
+                    return;
+                }
+                transitions[`${current_state},${symbol}`] = next_state;
+            }
+
+            automata.states = states;
+            automata.alphabet = alphabet;
+            automata.transitions = transitions;
+            automata.start_state = start_state;
+            automata.final_states = final_states;
+            automata.current_state = start_state;
+            automata.test_string = "";
+            automata.index = 0;
+            automata.steps = [];
+            automata.accepted = false;
+
+            resultDiv.innerHTML = "DFA built successfully.";
+            renderDiagram();
+        }
+
+        function recognizeToken() {
+            let test_string = document.getElementById("testInput").value;
+            let resultDiv = document.getElementById("result");
+            automata.test_string = test_string;
+            automata.current_state = automata.start_state;
+            automata.index = 0;
+            automata.steps = [];
+            automata.accepted = false;
+
+            let state = automata.start_state;
+            for (let i = 0; i < test_string.length; i++) {
+                let symbol = test_string[i];
+                let key = `${state},${symbol}`;
+                if (key in automata.transitions) {
+                    let next_state = automata.transitions[key];
+                    automata.steps.push({
+                        index: i,
+                        char: symbol,
+                        from: state,
+                        to: next_state
+                    });
+                    state = next_state;
+                } else {
+                    automata.steps.push({
+                        index: i,
+                        char: symbol,
+                        from: state,
+                        to: null
+                    });
+                    resultDiv.innerHTML = "String rejected.";
+                    updateVisual();
+                    renderHighlightedText();
+                    return;
+                }
+            }
+
+            automata.accepted = automata.final_states.includes(state);
+            resultDiv.innerHTML = automata.accepted ? "String accepted!" : "String rejected.";
+            updateVisual();
+            renderHighlightedText();
+        }
+
+        function updateVisual() {
+            const step = automata.steps[automata.index];
+            if (!step) return;
+            document.getElementById("visual").innerHTML =
+                `<strong>DFA Step:</strong><br>
+    Reading '${step.char}' at index ${step.index}: State ${step.from} → ${step.to || 'None'}`;
+        }
+
+        function renderHighlightedText() {
+            const text = automata.test_string;
+            const output = [];
+            for (let i = 0; i < text.length; i++) {
+                let cls = i === automata.index ? 'current' : '';
+                if (i === text.length - 1 && automata.accepted) {
+                    cls += ' accepted';
+                }
+                output.push(`<span class="${cls}">${text[i]}</span>`);
+            }
+            document.getElementById("highlightedText").innerHTML = output.join('');
+        }
+
+        function nextStep() {
+            if (automata.index < automata.test_string.length) {
+                automata.index++;
+                updateVisual();
+                renderHighlightedText();
+            }
+        }
+
+        function resetTraversal() {
+            automata.index = 0;
+            automata.current_state = automata.start_state;
+            updateVisual();
+            renderHighlightedText();
+        }
+
+        function generateDOT() {
+            let dot = 'digraph DFA {\nrankdir=LR;\nnode [shape=circle fontname="Arial"];\n';
+            for (let fs of automata.final_states) {
+                dot += `node [shape = doublecircle]; ${fs};\n`;
+            }
+            dot += 'node [shape = circle];\nstart [shape=point];\nstart -> "' + automata.start_state + '";\n';
+
+            for (let key in automata.transitions) {
+                let [state, symbol] = key.split(',');
+                let target = automata.transitions[key];
+                dot += `"${state}" -> "${target}" [label="${symbol}"];\n`;
+            }
+
+            for (let state of automata.states) {
+                let tooltip = state === automata.start_state ? "Start State" :
+                    automata.final_states.includes(state) ? "Accepting State" : "State";
+                dot += `"${state}" [label="${state}", tooltip="${tooltip}"];\n`;
+            }
+
+            dot += '}';
+            return dot;
+        }
+
+        function renderDiagram() {
+            let dot = generateDOT();
+            new Viz().renderSVGElement(dot).then(svg => {
+                document.getElementById("graph").innerHTML = '';
+                document.getElementById("graph").appendChild(svg);
+            }).catch(err => {
+                console.error(err);
+                document.getElementById("graph").innerHTML = "Error rendering diagram.";
+            });
+        }
+
+        function exportDiagram(format) {
+            let dot = generateDOT();
+            let viz = new Viz();
+            if (format === 'svg') {
+                viz.renderSVGElement(dot).then(svg => {
+                    let serializer = new XMLSerializer();
+                    let source = serializer.serializeToString(svg);
+                    let blob = new Blob([source], {
+                        type: 'image/svg+xml;charset=utf-8'
+                    });
+                    let url = URL.createObjectURL(blob);
+                    let link = document.createElement("a");
+                    link.href = url;
+                    link.download = "dfa.svg";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            } else if (format === 'png') {
+                viz.renderImageElement(dot).then(img => {
+                    let link = document.createElement("a");
+                    link.href = img.src;
+                    link.download = "dfa.png";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+        }
+
+        // Trigger recognition when test string changes
+        document.getElementById("testInput").addEventListener("input", recognizeToken);
+    </script>
+</body>
+
+</html>

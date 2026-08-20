@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CFG Normal Form Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 650px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        button {
+            padding: 10px;
+            margin: 10px;
+            width: 200px;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 5px;
+            background: blue;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        
+        button:hover {
+            background: darkblue;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Context-Free Grammar Normal Form Converter</h2>
+        <p>Select the normal form to convert your grammar:</p>
+        <button onclick="window.location.href='cfg-to-cnf.html'">Chomsky Normal Form (CNF)</button>
+        <button onclick="window.location.href='cfg-to-gnf.html'">Greibach Normal Form (GNF)</button>
+    </div>
+</body>
+
+</html>

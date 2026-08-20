@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to AutoMates</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #007bff, #6610f2);
+      color: white;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .card {
+      background: white;
+      border: none;
+      border-radius: 20px;
+      padding: 40px 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      text-align: center;
+      width: 100%;
+      max-width: 400px;
+      animation: fadeInUp 1s ease-out;
+    }
+
+    .card h1 {
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    .btn-custom {
+      width: 100%;
+      margin-top: 15px;
+      padding: 12px;
+      border-radius: 30px;
+      font-size: 16px;
+      transition: 0.3s ease;
+    }
+
+    .btn-login {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .btn-login:hover {
+      background-color: #0056b3;
+    }
+
+    .btn-signup {
+      background-color: #28a745;
+      color: white;
+    }
+
+    .btn-signup:hover {
+      background-color: #1e7e34;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(40px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="css/js/assets/images/automates_logo.jpg" alt="AutoMates Logo" style="max-width: 120px; margin-bottom: 20px;">
+    <h1>Welcome to AutoMates</h1>
+    <p class="text-muted">Choose an option to continue</p>
+    <button class="btn btn-custom btn-login" onclick="location.href='login.html'">Login</button>
+    <button class="btn btn-custom btn-signup" onclick="location.href='register.html'">Sign Up</button>
+  </div>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GNF Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 650px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        textarea,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        
+        button {
+            background: blue;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        
+        #controls button {
+            width: 48%;
+            display: inline-block;
+        }
+        
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: left;
+        }
+        
+        #steps {
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Greibach Normal Form (GNF) Converter</h2>
+        <textarea id="grammarInput" rows="5" placeholder="Enter grammar, e.g., S -> AB | a\nA -> aA | ε\nB -> bB | b"></textarea>
+        <button onclick="convertGrammar()">Convert to GNF</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next Step</button>
+            <button onclick="resetSteps()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="steps"></div>
+        <p><a href="cfg-to-normalform.html">Back to Selection</a></p>
+    </div>
+
+    <script>
+        let traversal = {
+            index: 0,
+            steps: [],
+            grammar: {},
+            currentGrammar: {},
+            terminals: new Set(),
+            variables: new Set()
+        };
+
+        function parseGrammar(input) {
+            const productions = {};
+            const terminals = new Set();
+            const variables = new Set();
+            const lines = input.split('\n').map(line => line.trim()).filter(line => line && line.includes('->'));
+
+            for (let line of lines) {
+                const [left, right] = line.split('->').map(s => s.trim());
+                if (!left || !right || left.length !== 1 || !/[A-Z]/.test(left)) continue;
+                const variable = left;
+                variables.add(variable);
+                const rules = right.split('|').map(r => r.trim().replace(/\s+/g, '')).filter(r => r);
+                productions[variable] = rules;
+
+                for (let rule of rules) {
+                    for (let char of rule) {
+                        if (/[a-z]/.test(char)) {
+                            terminals.add(char);
+                        } else if (/[A-Z]/.test(char)) {
+                            variables.add(char);
+                        }
+                    }
+                }
+            }
+
+            return {
+                productions,
+                terminals,
+                variables,
+                start_variable: 'S'
+            };
+        }
+
+        function toGreibachNormalForm(grammar) {
+            const steps = [];
+            let productions = JSON.parse(JSON.stringify(grammar.productions));
+            const variables = Array.from(grammar.variables);
+            const terminals = grammar.terminals;
+            let newVarCounter = 1;
+            const maxIterations = 1000;
+
+            const nullable = new Set();
+            let changed = true;
+            let iterationCount = 0;
+            while (changed && iterationCount++ < maxIterations) {
+                changed = false;
+                for (const variable in productions) {
+                    for (const prod of productions[variable]) {
+                        if (prod === 'ε' && !nullable.has(variable)) {
+                            nullable.add(variable);
+                            changed = true;
+                        } else if (prod !== 'ε' && prod.split('').every(c => nullable.has(c) || c === 'ε')) {
+                            nullable.add(variable);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            if (iterationCount >= maxIterations) {
+                steps.push({
+                    step: 'Stopped: Maximum iterations reached in ε-elimination',
+                    grammar: grammarToString(productions)
+                });
+                return {
+                    productions,
+                    steps
+                };
+            }
+            const newProds = {};
+            for (const variable in productions) {
+                newProds[variable] = [];
+                for (const prod of productions[variable]) {
+                    if (prod !== 'ε') {
+                        newProds[variable].push(prod);
+                        if (prod.split('').some(c => nullable.has(c))) {
+                            const combos = generateCombinations(prod, nullable);
+                            newProds[variable].push(...combos.filter(c => c !== '' && c !== prod));
+                        }
+                    }
+                }
+                newProds[variable] = [...new Set(newProds[variable])];
+                if (newProds[variable].length === 0) {
+                    delete newProds[variable];
+                }
+            }
+            productions = newProds;
+            steps.push({
+                step: 'Eliminated ε-productions',
+                grammar: grammarToString(productions)
+            });
+
+            const varOrder = {};
+            variables.forEach((v, i) => (varOrder[v] = i));
+            const sortedVars = variables.sort((a, b) => varOrder[a] - varOrder[b]);
+
+            for (let i = 0; i < sortedVars.length; i++) {
+                const A = sortedVars[i];
+                if (!productions[A]) continue;
+                for (let j = 0; j < i; j++) {
+                    const B = sortedVars[j];
+                    if (!productions[B]) continue;
+                    const newRules = [];
+                    for (const prod of productions[A]) {
+                        if (prod.startsWith(B)) {
+                            const rest = prod.slice(1);
+                            for (const bProd of productions[B]) {
+                                newRules.push(bProd + rest);
+                            }
+                        } else {
+                            newRules.push(prod);
+                        }
+                    }
+                    productions[A] = [...new Set(newRules)];
+                }
+                const alpha = [];
+                const beta = [];
+                for (const prod of productions[A]) {
+                    if (prod.startsWith(A)) {
+                        alpha.push(prod.slice(1));
+                    } else {
+                        beta.push(prod);
+                    }
+                }
+                if (alpha.length > 0) {
+                    const newVar = `Z${newVarCounter++}`;
+                    variables.push(newVar);
+                    productions[A] = beta.map(b => b + (beta.length > 0 ? newVar : ''));
+                    productions[newVar] = alpha.map(a => a + newVar).concat(alpha);
+                    steps.push({
+                        step: `Removed left recursion from ${A}`,
+                        grammar: grammarToString(productions)
+                    });
+                }
+            }
+
+            iterationCount = 0;
+            let modified;
+            do {
+                modified = false;
+                for (const A in productions) {
+                    const newRules = [];
+                    for (const prod of productions[A]) {
+                        if (terminals.has(prod[0])) {
+                            newRules.push(prod);
+                        } else if (variables.includes(prod[0])) {
+                            const B = prod[0];
+                            const rest = prod.slice(1);
+                            if (productions[B]) {
+                                for (const bProd of productions[B]) {
+                                    if (bProd !== prod) {
+                                        newRules.push(bProd + rest);
+                                    }
+                                }
+                                modified = true;
+                            }
+                        } else {
+                            newRules.push(prod);
+                        }
+                    }
+                    productions[A] = [...new Set(newRules)];
+                }
+                if (modified) {
+                    steps.push({
+                        step: 'Substituted productions to start with terminals',
+                        grammar: grammarToString(productions)
+                    });
+                }
+            } while (modified && iterationCount++ < maxIterations);
+            if (iterationCount >= maxIterations) {
+                steps.push({
+                    step: 'Stopped: Maximum iterations reached in terminal substitution',
+                    grammar: grammarToString(productions)
+                });
+                return {
+                    productions,
+                    steps
+                };
+            }
+
+            return {
+                productions,
+                steps
+            };
+        }
+
+        function generateCombinations(prod, nullable) {
+            const result = [''];
+            const maxCombinations = 1000;
+            let count = 0;
+            for (const c of prod) {
+                const newResult = [];
+                for (const r of result) {
+                    newResult.push(r + c);
+                    if (nullable.has(c)) {
+                        newResult.push(r);
+                    }
+                    if (newResult.length > maxCombinations) {
+                        return newResult.slice(0, maxCombinations);
+                    }
+                }
+                result.splice(0, result.length, ...newResult);
+                count++;
+                if (count > maxCombinations) break;
+            }
+            return result.filter(r => r !== '');
+        }
+
+        function grammarToString(grammar) {
+            const lines = [];
+            for (const variable in grammar) {
+                if (grammar[variable].length > 0) {
+                    lines.push(`${variable} -> ${grammar[variable].join(' | ')}`);
+                }
+            }
+            return lines.join('\n') || 'No productions';
+        }
+
+        function convertGrammar() {
+            const input = document.getElementById("grammarInput").value;
+            const resultDiv = document.getElementById("result");
+            traversal.steps = [];
+            traversal.index = 0;
+
+            const grammar = parseGrammar(input);
+            if (Object.keys(grammar.productions).length === 0) {
+                resultDiv.innerHTML = 'Invalid grammar input';
+                return;
+            }
+            traversal.grammar = grammar.productions;
+            traversal.terminals = grammar.terminals;
+            traversal.variables = grammar.variables;
+            traversal.currentGrammar = {...grammar.productions
+            };
+
+            try {
+                const result = toGreibachNormalForm(grammar);
+                resultDiv.innerText = `Greibach Normal Form (GNF):\n${grammarToString(result.productions)}`;
+                traversal.steps = result.steps;
+                updateSteps();
+            } catch (e) {
+                resultDiv.innerText = `Error during conversion: ${e.message}`;
+            }
+        }
+
+        function updateSteps() {
+            const step = traversal.steps[traversal.index];
+            if (!step) {
+                document.getElementById("steps").innerHTML = 'No steps available';
+                return;
+            }
+            document.getElementById("steps").innerHTML = `
+                <strong>Step: ${step.step}</strong><br>
+                <pre>${step.grammar}</pre>`;
+        }
+
+        function nextStep() {
+            if (traversal.index < traversal.steps.length - 1) {
+                traversal.index++;
+                updateSteps();
+            }
+        }
+
+        function resetSteps() {
+            traversal.index = 0;
+            updateSteps();
+        }
+    </script>
+</body>
+
+</html>

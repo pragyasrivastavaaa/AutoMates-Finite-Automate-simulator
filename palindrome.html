@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Finite Automata Palindrome Detector</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js" type="application/javascript"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            max-width: 700px;
+            margin: auto;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        input,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        
+        button {
+            background: blue;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        
+        #controls button {
+            width: 48%;
+            display: inline-block;
+        }
+        
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        #visual {
+            font-family: monospace;
+            text-align: left;
+            margin-top: 20px;
+            background: #eef;
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        #highlightedText span {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .current {
+            background: yellow;
+        }
+        
+        #graph {
+            margin-top: 20px;
+            max-width: 100%;
+            overflow-x: auto;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Pushdown Automata Palindrome Detector</h2>
+        <input id="textInput" placeholder="Enter string to check (e.g., racecar)" />
+        <button onclick="checkPalindrome()">Build PDA & Check</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next</button>
+            <button onclick="resetTraversal()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="highlightedText"></div>
+        <div id="visual"></div>
+        <div id="graph"></div>
+        <button onclick="exportDiagram('svg')">Export PDA as SVG</button>
+        <button onclick="exportDiagram('png')">Export PDA as PNG</button>
+    </div>
+
+    <script>
+        let traversal = {
+            index: 0,
+            state: 'q0',
+            text: '',
+            stack: [],
+            steps: [],
+            alphabet: new Set(),
+            isPalindrome: false
+        };
+
+        function buildPalindromePDA(text) {
+            const alphabet = new Set(text);
+            const stack = ['$'];
+            const steps = [];
+            let state = 'q0';
+            let isPalindrome = true;
+            const halfway = Math.floor(text.length / 2);
+
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                const prevState = state;
+                let stackAction = '';
+
+                if (state === 'q0') {
+                    if (i < halfway) {
+                        stack.push(ch);
+                        stackAction = `Push '${ch}'`;
+                    } else {
+                        state = 'q1';
+                        if (text.length % 2 === 1) {
+                            stackAction = 'Skip middle';
+                        } else {
+                            const popped = stack.pop();
+                            stackAction = `Pop '${popped}'`;
+                            if (ch !== popped) {
+                                state = 'q_reject';
+                                isPalindrome = false;
+                            }
+                        }
+                    }
+                } else if (state === 'q1') {
+                    const popped = stack.pop();
+                    stackAction = `Pop '${popped}'`;
+                    if (ch !== popped) {
+                        state = 'q_reject';
+                        isPalindrome = false;
+                    } else if (stack.length === 1 && i === text.length - 1) {
+                        state = 'q_accept';
+                    }
+                }
+
+                steps.push({
+                    index: i,
+                    char: ch,
+                    from: prevState,
+                    to: state,
+                    stack: stackAction,
+                    stackContent: [...stack]
+                });
+            }
+
+            if (stack.length > 1 || state !== 'q_accept') {
+                isPalindrome = false;
+            }
+
+            return {
+                steps,
+                isPalindrome,
+                alphabet
+            };
+        }
+
+        function checkPalindrome() {
+            const text = document.getElementById("textInput").value;
+            const resultDiv = document.getElementById("result");
+            traversal.text = text;
+            traversal.alphabet = new Set(text);
+            traversal.index = 0;
+            traversal.state = 'q0';
+            traversal.stack = ['$'];
+            traversal.steps = [];
+
+            const {
+                steps,
+                isPalindrome
+            } = buildPalindromePDA(text);
+            traversal.steps = steps;
+            traversal.isPalindrome = isPalindrome;
+
+            resultDiv.innerHTML = isPalindrome ?
+                "String is a palindrome!" :
+                "String is not a palindrome.";
+
+            updateVisual();
+            renderDiagram();
+            renderHighlightedText();
+        }
+
+        function updateVisual() {
+            const step = traversal.steps[traversal.index];
+            if (!step) return;
+            document.getElementById("visual").innerHTML = `
+          <strong>Step:</strong><br>
+          Reading '${step.char}' at index ${step.index}: State ${step.from} → ${step.to}<br>
+          Stack Action: ${step.stack}<br>
+          Stack Content: [${step.stackContent.join(', ')}]`;
+            renderHighlightedText();
+        }
+
+        function renderHighlightedText() {
+            const text = traversal.text;
+            const output = [];
+            for (let i = 0; i < text.length; i++) {
+                const cls = i === traversal.index ? 'current' : '';
+                output.push(`<span class="${cls}">${text[i]}</span>`);
+            }
+            document.getElementById("highlightedText").innerHTML = output.join('');
+        }
+
+        function nextStep() {
+            if (traversal.index < traversal.text.length - 1) {
+                traversal.index++;
+                updateVisual();
+            }
+        }
+
+        function resetTraversal() {
+            traversal.index = 0;
+            traversal.state = 'q0';
+            traversal.stack = ['$'];
+            updateVisual();
+        }
+
+        function generateDOT(alphabet) {
+            let dot = 'digraph PalindromePDA {\nrankdir=LR;\nnode [shape=circle fontname="Arial"];\n';
+            dot += 'node [shape = doublecircle]; q_accept;\n';
+            dot += 'node [shape = circle];\nstart [shape=point];\nstart -> q0;\n';
+            dot += 'q0 [label="q0"];\n';
+            dot += 'q1 [label="q1"];\n';
+            dot += 'q_accept [label="q_accept"];\n';
+            dot += 'q_reject [label="q_reject"];\n';
+
+            for (let ch of alphabet) {
+                dot += `q0 -> q0 [label="${ch}, ε → ${ch} (push)"];\n`;
+                dot += `q0 -> q1 [label="${ch}, ε → ε (halfway)"];\n`;
+                dot += `q1 -> q1 [label="${ch}, ${ch} → ε (pop/match)"];\n`;
+                dot += `q1 -> q_reject [label="${ch}, X → ε (pop/no match)"];\n`;
+            }
+            dot += `q1 -> q_accept [label="ε, $ → $ (stack empty)"];\n`;
+
+            dot += '}';
+            return dot;
+        }
+
+        function renderDiagram() {
+            const dot = generateDOT(traversal.alphabet);
+            new Viz().renderSVGElement(dot).then(svg => {
+                svg.setAttribute("width", "100%");
+                svg.setAttribute("height", "auto");
+                svg.style.maxWidth = "100%";
+                svg.style.height = "auto";
+                svg.style.display = "block";
+                document.getElementById("graph").innerHTML = '';
+                document.getElementById("graph").appendChild(svg);
+            }).catch(err => {
+                console.error(err);
+                document.getElementById("graph").innerHTML = "Error rendering diagram.";
+            });
+        }
+
+        function exportDiagram(format) {
+            const dot = generateDOT(traversal.alphabet);
+            const viz = new Viz();
+            if (format === 'svg') {
+                viz.renderSVGElement(dot).then(svg => {
+                    const serializer = new XMLSerializer();
+                    const source = serializer.serializeToString(svg);
+                    const blob = new Blob([source], {
+                        type: 'image/svg+xml;charset=utf-8'
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "palindrome_pda.svg";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            } else if (format === 'png') {
+                viz.renderImageElement(dot).then(img => {
+                    const link = document.createElement("a");
+                    link.href = img.src;
+                    link.download = "palindrome_pda.png";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>

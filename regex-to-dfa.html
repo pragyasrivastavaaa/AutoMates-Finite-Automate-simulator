@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Regex to NFA/DFA Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f8f8f8;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            margin: auto;
+            max-width: 700px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #ccc;
+        }
+        
+        input,
+        select,
+        button {
+            padding: 10px;
+            margin: 5px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        #highlightedText span.match {
+            background: lightgreen;
+        }
+        
+        #highlightedText span.current {
+            background: yellow;
+        }
+        
+        #visual,
+        #graph {
+            margin-top: 20px;
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Regex to NFA/DFA Converter</h2>
+        <select id="conversionType">
+      <option value="nfa">Regex to NFA</option>
+      <option value="dfa">Regex to DFA</option>
+    </select>
+        <input id="regexInput" placeholder="Enter regex (e.g., (a|b)*abb)">
+        <input id="textInput" placeholder="Enter text to match">
+        <button onclick="processRegex()">Build & Match</button>
+        <div id="controls">
+            <button onclick="nextStep()">Next</button>
+            <button onclick="resetTraversal()">Reset</button>
+        </div>
+        <div id="result"></div>
+        <div id="highlightedText"></div>
+        <div id="visual"></div>
+        <div id="graph"></div>
+        <button onclick="exportDiagram('svg')">Export as SVG</button>
+        <button onclick="exportDiagram('png')">Export as PNG</button>
+    </div>
+
+    <script>
+        class NFA {
+            constructor() {
+                this.states = new Set();
+                this.transitions = {};
+                this.start = 0;
+                this.accepts = new Set();
+                this.stateCount = 0;
+            }
+            newState() {
+                this.states.add(this.stateCount);
+                return this.stateCount++;
+            }
+            addTransition(from, to, symbol) {
+                if (!this.transitions[from]) this.transitions[from] = {};
+                if (!this.transitions[from][symbol]) this.transitions[from][symbol] = [];
+                this.transitions[from][symbol].push(to);
+            }
+            move(states, symbol) {
+                const result = new Set();
+                for (let state of states) {
+                    if (this.transitions[state] && this.transitions[state][symbol]) {
+                        this.transitions[state][symbol].forEach(s => result.add(s));
+                    }
+                }
+                return result;
+            }
+        }
+
+        function regexToNFA(regex) {
+            let nfa = new NFA();
+            let start = nfa.newState();
+            let end = nfa.newState();
+            nfa.addTransition(start, end, regex);
+            nfa.start = start;
+            nfa.accepts.add(end);
+            return nfa;
+        }
+
+        function nfaToDFA(nfa, alphabet) {
+            let startSet = new Set([nfa.start]);
+            let dfaStates = [startSet];
+            let unmarked = [startSet];
+            let dfa = [];
+            let accepts = [];
+            while (unmarked.length > 0) {
+                let current = unmarked.pop();
+                let index = dfaStates.findIndex(s => setsEqual(s, current));
+                dfa[index] = {};
+                for (let symbol of alphabet) {
+                    let moveSet = nfa.move(current, symbol);
+                    let existing = dfaStates.findIndex(s => setsEqual(s, moveSet));
+                    if (existing === -1) {
+                        dfaStates.push(moveSet);
+                        unmarked.push(moveSet);
+                        dfa[index][symbol] = dfaStates.length - 1;
+                    } else {
+                        dfa[index][symbol] = existing;
+                    }
+                }
+                if ([...current].some(s => nfa.accepts.has(s))) accepts.push(index);
+            }
+            return {
+                dfa,
+                start: 0,
+                accepts
+            };
+        }
+
+        function setsEqual(a, b) {
+            if (a.size !== b.size) return false;
+            for (let x of a)
+                if (!b.has(x)) return false;
+            return true;
+        }
+
+        const traversal = {
+            index: 0,
+            text: '',
+            regex: '',
+            nfa: null,
+            dfa: null,
+            states: new Set([0]),
+            conversionType: 'nfa',
+            matches: []
+        };
+
+        function visualizeTraversal(state, index, char) {
+            const visual = document.getElementById('visual');
+            visual.innerText = `At index ${index}, character '${char}', current state(s): ${[...state].join(', ')}`;
+        }
+
+        function highlightText(index, length) {
+            const text = traversal.text;
+            let html = '';
+            for (let i = 0; i < text.length; i++) {
+                let cls = '';
+                if (i >= index && i < index + length) cls = 'match';
+                if (i === traversal.index) cls += ' current';
+                html += `<span class="${cls}">${text[i]}</span>`;
+            }
+            document.getElementById('highlightedText').innerHTML = html;
+        }
+
+        function processRegex() {
+            const regex = document.getElementById("regexInput").value;
+            const text = document.getElementById("textInput").value;
+            const type = document.getElementById("conversionType").value;
+            if (!regex || !text) return alert("Enter regex and text.");
+
+            traversal.index = 0;
+            traversal.text = text;
+            traversal.regex = regex;
+            traversal.matches = [];
+            traversal.conversionType = type;
+
+            const nfa = regexToNFA(regex);
+            traversal.nfa = nfa;
+
+            if (type === "dfa") traversal.dfa = nfaToDFA(nfa, new Set(text));
+            traversal.states = new Set([nfa.start]);
+
+            document.getElementById("result").innerText = "Automaton built. Click Next to simulate.";
+            highlightText(0, 0);
+            visualizeGraph();
+        }
+
+        function nextStep() {
+            if (traversal.index >= traversal.text.length) {
+                document.getElementById("result").innerText = "Traversal complete.";
+                return;
+            }
+            const char = traversal.text[traversal.index];
+            const current = traversal.states;
+            let next;
+            if (traversal.conversionType === "dfa") {
+                next = new Set();
+                for (let s of current) {
+                    const d = traversal.dfa.dfa[s];
+                    if (d && d[char] !== undefined) next.add(d[char]);
+                }
+            } else {
+                next = traversal.nfa.move(current, char);
+            }
+            traversal.index++;
+            traversal.states = next;
+            visualizeTraversal(next, traversal.index, char);
+            highlightText(traversal.index, 1);
+            if ((traversal.conversionType === "dfa" && [...next].some(s => traversal.dfa.accepts.includes(s))) ||
+                (traversal.conversionType === "nfa" && [...next].some(s => traversal.nfa.accepts.has(s)))) {
+                document.getElementById("result").innerText = `Match found at index ${traversal.index}`;
+            }
+        }
+
+        function resetTraversal() {
+            traversal.index = 0;
+            traversal.states = new Set([traversal.nfa.start]);
+            document.getElementById("result").innerText = "Traversal reset.";
+            highlightText(0, 0);
+            document.getElementById("visual").innerText = "";
+        }
+
+        function visualizeGraph() {
+            let dot = 'digraph G {\nrankdir=LR;\nnode [shape=circle];\n';
+            if (traversal.conversionType === 'dfa') {
+                const {
+                    dfa,
+                    start,
+                    accepts
+                } = traversal.dfa;
+                dot += `start [shape=plaintext,label="start"];\nstart -> ${start};\n`;
+                for (let i = 0; i < dfa.length; i++) {
+                    if (accepts.includes(i)) dot += `${i} [shape=doublecircle];\n`;
+                    for (let ch in dfa[i]) {
+                        dot += `${i} -> ${dfa[i][ch]} [label="${ch}"];\n`;
+                    }
+                }
+            } else {
+                const {
+                    transitions,
+                    start,
+                    accepts
+                } = traversal.nfa;
+                dot += `start [shape=plaintext,label="start"];\nstart -> ${start};\n`;
+                for (let from in transitions) {
+                    for (let ch in transitions[from]) {
+                        for (let to of transitions[from][ch]) {
+                            dot += `${from} -> ${to} [label="${ch}"];\n`;
+                        }
+                    }
+                }
+                for (let acc of accepts) dot += `${acc} [shape=doublecircle];\n`;
+            }
+            dot += '}';
+            const viz = new Viz();
+            viz.renderSVGElement(dot)
+                .then(svg => {
+                    document.getElementById("graph").innerHTML = '';
+                    document.getElementById("graph").appendChild(svg);
+                })
+                .catch(err => {
+                    document.getElementById("graph").innerText = "Graph error: " + err.message;
+                });
+        }
+
+        function exportDiagram(type) {
+            const svg = document.querySelector("#graph svg");
+            if (!svg) return alert("Build automaton first.");
+            const serializer = new XMLSerializer();
+            const source = serializer.serializeToString(svg);
+            const blob = new Blob([source], {
+                type: "image/svg+xml;charset=utf-8"
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "automaton." + type;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+
+</html>
